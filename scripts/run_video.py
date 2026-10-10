@@ -16,8 +16,9 @@ import numpy as np
 
 from blindnav.depth import DepthEstimator, colorize, object_distance
 from blindnav.detector import Detector
+from blindnav.risk import MotionTracker
 from blindnav.spatial import SpatialAnalyzer
-from blindnav.visualize import draw_detections, draw_fps, draw_path
+from blindnav.visualize import TrailDrawer, draw_detections, draw_fps, draw_path
 
 MAX_WIDTH = 1280  # downscale 4K input: faster to process and to encode
 
@@ -40,6 +41,10 @@ def main():
     detector = Detector(args.weights, conf=args.conf, all_classes=args.all_classes)
     depth_estimator = None if args.no_depth else DepthEstimator()
     spatial = SpatialAnalyzer()
+    motion = MotionTracker()
+    trails = TrailDrawer()
+    video_fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    frame_index = -1
 
     writer = None
     if isinstance(source, str):
@@ -54,6 +59,10 @@ def main():
         ok, frame = cap.read()
         if not ok:
             break  # end of video
+        frame_index += 1
+        # Speeds must use *video* time. We process slower than real time (~9 FPS on a
+        # 30 FPS video), so wall-clock time would make everything look 3x too slow.
+        t = frame_index / video_fps if isinstance(source, str) else time.perf_counter()
 
         h, w = frame.shape[:2]
         if w > MAX_WIDTH:
@@ -71,6 +80,7 @@ def main():
                 det.distance = object_distance(depth, det.box)
             t_depth = time.perf_counter()
             path = spatial.analyze(depth, detections)
+            motion.update(t, detections, path, frame.shape[0])
         end = time.perf_counter()
 
         times["detect"].append(t_detect - start)
@@ -82,6 +92,7 @@ def main():
 
         if path is not None:
             draw_path(frame, path)
+        trails.draw(frame, detections)
         draw_detections(frame, detections)
         draw_fps(frame, fps_smooth)
         if depth is not None:

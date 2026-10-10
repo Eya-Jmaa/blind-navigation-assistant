@@ -1,4 +1,5 @@
 ultralytics>=8.3      # YOLO11 detection + ByteTrack tracking
+lap                   # assignment solver used by ByteTrack (Phase 4)
 opencv-python>=4.10   # video I/O and drawing
 numpy
 transformers>=4.45    # Depth Anything V2 (Phase 2)
