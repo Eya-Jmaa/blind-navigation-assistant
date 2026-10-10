@@ -19,6 +19,9 @@ class Detection:
     box: tuple[int, int, int, int]  # (x1, y1, x2, y2) in pixels, top-left / bottom-right corners
     class_name: str
     confidence: float  # 0..1, how sure the model is
+    distance: float | None = None  # meters, filled in by the depth estimator
+    clock: int | None = None       # direction, 12 = straight ahead (filled in by spatial analysis)
+    in_path: bool = False          # is it in the user's walking path?
 
 
 class Detector:
