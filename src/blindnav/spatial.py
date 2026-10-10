@@ -4,6 +4,7 @@ Pipeline: depth map -> 3D points -> find the ground plane -> anything sticking u
 from the ground inside a corridor in front of the user is an obstacle, whatever it is.
 """
 
+from collections import deque
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -76,12 +77,15 @@ class GroundEstimator:
     the model says 4.2 m, every distance must be divided by 3.
     """
 
-    def __init__(self, iterations: int = 100, smoothing: float = 0.9):
+    def __init__(self, iterations: int = 100, history: int = 90):
         self.iterations = iterations
-        self.smoothing = smoothing
         self.rng = np.random.default_rng(0)
         self.plane = None  # last valid (normal, offset), in raw model units
         self.scale = 1.0
+        # Per-frame estimates are noisy (shadows, crowds hiding the ground). The camera height
+        # barely changes, so we use the median of the last ~3 s of estimates: very stable,
+        # and immune to the occasional bad fit.
+        self.recent_scales = deque(maxlen=history)
 
     def update(self, points: np.ndarray) -> bool:
         lower = points[int(points.shape[0] * 0.6):].reshape(-1, 3)  # ground is at the bottom
@@ -92,11 +96,8 @@ class GroundEstimator:
         plane, inlier_ratio = fit_plane_ransac(lower, self.iterations, self.rng)
         if plane is not None and inlier_ratio > 0.25 and -plane[1] > 0:
             self.plane = plane
-            new_scale = CAMERA_HEIGHT / -plane[1]  # -offset = camera height in model units
-            # Smooth over time: one bad frame must not make all distances jump.
-            first = self.scale == 1.0
-            self.scale = new_scale if first else (
-                self.smoothing * self.scale + (1 - self.smoothing) * new_scale)
+            self.recent_scales.append(CAMERA_HEIGHT / -plane[1])  # -offset = camera height
+            self.scale = float(np.median(self.recent_scales))
         # If this frame's fit is bad, keep using the last good ground.
         return self.plane is not None
 
@@ -108,6 +109,8 @@ class PathStatus:
     distance: float | None = None   # m to the nearest obstacle in the path
     clock: int | None = None
     head_level: bool = False        # obstacle with nothing below 1 m: invisible to a cane
+    approach_speed: float | None = None  # m/s (filled in by risk analysis)
+    ttc: float | None = None             # s
     obstacle_pixels: tuple = field(default_factory=lambda: (np.array([]), np.array([])))
     corridor: np.ndarray | None = None  # 4 image points of the path, for drawing
 

@@ -1,5 +1,7 @@
 """Drawing overlays on frames for the demo video."""
 
+from collections import defaultdict, deque
+
 import cv2
 import numpy as np
 
@@ -13,6 +15,8 @@ COLORS = {
     "bicycle": (240, 160, 60), "motorcycle": (240, 160, 60),
 }
 DEFAULT_COLOR = (200, 200, 200)
+DANGER_COLOR = (255, 0, 255)  # magenta: approaching with a short time-to-collision
+DANGER_TTC = 3.0              # s
 
 
 def draw_detections(frame: np.ndarray, detections: list[Detection]) -> np.ndarray:
@@ -27,12 +31,17 @@ def draw_detections(frame: np.ndarray, detections: list[Detection]) -> np.ndarra
 
         if det.in_path:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), thickness * 2)  # red = in my way
+        if det.ttc is not None and det.ttc < DANGER_TTC:
+            color = DANGER_COLOR
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness * 3)
 
         label = f"{det.class_name} {det.confidence:.2f}"
         if det.distance is not None:
             label = f"{det.class_name} {det.distance:.1f}m"
         if det.clock is not None:
             label += f" @{det.clock}h"
+        if det.ttc is not None:
+            label += f" TTC {det.ttc:.1f}s"
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6 * scale, thickness)
         cv2.rectangle(frame, (x1, y1 - th - 8), (x1 + tw + 6, y1), color, -1)  # filled label bg
         cv2.putText(frame, label, (x1 + 3, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX,
@@ -58,6 +67,8 @@ def draw_path(frame: np.ndarray, status: PathStatus) -> np.ndarray:
         text, color = "PATH: no ground found", (0, 200, 255)
     elif status.blocked:
         text = f"PATH BLOCKED: {status.distance:.1f}m @{status.clock}h"
+        if status.ttc is not None:
+            text += f" TTC {status.ttc:.1f}s"
         if status.head_level:
             text += " HEAD LEVEL!"
         color = (0, 0, 255)
@@ -69,6 +80,26 @@ def draw_path(frame: np.ndarray, status: PathStatus) -> np.ndarray:
     cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.9 * scale, color,
                 max(1, round(2 * scale)))
     return frame
+
+
+class TrailDrawer:
+    """Draws the recent trajectory of each tracked object (where its feet were)."""
+
+    def __init__(self, length: int = 30):
+        self.trails = defaultdict(lambda: deque(maxlen=length))
+
+    def draw(self, frame: np.ndarray, detections: list[Detection]) -> np.ndarray:
+        thickness = max(1, round(2 * frame.shape[0] / 720))
+        for det in detections:
+            if det.track_id is None:
+                continue
+            x1, _, x2, y2 = det.box
+            trail = self.trails[det.track_id]
+            trail.append(((x1 + x2) // 2, y2))  # bottom-center = where it touches the ground
+            if len(trail) > 1:
+                color = DANGER_COLOR if det.ttc is not None and det.ttc < DANGER_TTC else (255, 255, 0)
+                cv2.polylines(frame, [np.array(trail, dtype=np.int32)], False, color, thickness)
+        return frame
 
 
 def draw_fps(frame: np.ndarray, fps: float) -> np.ndarray:
