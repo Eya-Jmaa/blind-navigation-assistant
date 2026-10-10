@@ -26,7 +26,7 @@ MAX_WIDTH = 1280  # downscale 4K input: faster to process and to encode
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", help="video path, or webcam index (0)")
-    parser.add_argument("--weights", default="models/yolo11n.pt")
+    parser.add_argument("--weights", default="models/yolo11s.pt")
     parser.add_argument("--conf", type=float, default=0.35)
     parser.add_argument("--all-classes", action="store_true")
     parser.add_argument("--no-depth", action="store_true", help="skip depth estimation")

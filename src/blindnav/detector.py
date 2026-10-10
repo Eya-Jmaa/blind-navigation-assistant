@@ -28,7 +28,7 @@ class Detection:
 
 
 class Detector:
-    def __init__(self, weights: str = "models/yolo11n.pt", conf: float = 0.35,
+    def __init__(self, weights: str = "models/yolo11s.pt", conf: float = 0.35,
                  all_classes: bool = False):
         self.model = YOLO(weights)  # downloads the weights on first use
         self.conf = conf
