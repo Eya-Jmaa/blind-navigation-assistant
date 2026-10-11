@@ -7,10 +7,13 @@ Examples:
     python scripts/run_video.py <video> --no-depth     # detection only (Phase 1)
     python scripts/run_video.py <video> --lang fr      # speak French
 
-For a video file, the result with sound is saved as data/outputs/<name>_demo.mp4.
+For a video file, the result (with sound) is saved as data/outputs/<name>_demo.mp4.
+The preview window is silent: processing is slower than real time, so the voice is
+added to the saved video at the end, perfectly synced.
 """
 
 import argparse
+import tempfile
 import time
 from pathlib import Path
 
@@ -62,8 +65,14 @@ def main():
     if isinstance(source, str):
         out_dir = Path("data/outputs")
         out_dir.mkdir(parents=True, exist_ok=True)
-        suffix = "detect" if args.no_depth else "path"
-        out_path = out_dir / f"{Path(source).stem}_{suffix}.mp4"
+        if args.no_depth:  # detection only: no alerts, so no sound to add
+            out_path = out_dir / f"{Path(source).stem}_detect.mp4"
+        else:
+            # The silent video is only an intermediate file: the final one gets the soundtrack.
+            out_path = Path(tempfile.gettempdir()) / f"{Path(source).stem}_silent.mp4"
+            demo_path = out_dir / f"{Path(source).stem}_demo.mp4"
+            print(f"Preview is silent. The video WITH SOUND will be saved to {demo_path} "
+                  "when processing ends (press q to stop early, not Ctrl+C).")
 
     fps_smooth = 0.0
     times = {"detect": [], "depth": [], "spatial": []}
@@ -143,11 +152,13 @@ def main():
     cap.release()
     if writer:
         writer.release()
-        print(f"Saved: {out_path}")
         if depth_estimator:
-            demo_path = out_path.with_name(f"{Path(source).stem}_demo.mp4")
+            print("Adding the soundtrack...")
             audio.mux(str(out_path), (frame_index + 1) / video_fps, str(demo_path))
-            print(f"Saved with sound: {demo_path}")
+            out_path.unlink()
+            print(f"Saved (with sound): {demo_path}")
+        else:
+            print(f"Saved: {out_path}")
     for name, values in times.items():
         if values and values[0] > 0:
             print(f"{name:>8}: {1000 * np.mean(values[5:] or values):.1f} ms/frame")
