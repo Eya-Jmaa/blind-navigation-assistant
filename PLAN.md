@@ -83,6 +83,16 @@ CV/
 └── scripts/              ← entry points (run on a video / webcam)
 ```
 
+## Known limitations (found while testing)
+
+| Limitation | Why | Planned fix |
+|---|---|---|
+| Absolute distances can be off (esp. at night, crowded scenes) | Monocular depth has no true scale; ground often hidden | Phase 9: measure error with a tape, calibrate |
+| Thin obstacles (poles, bollards) barely visible in depth | Depth model runs at ~518 px, thin structures get smoothed | Phase 6: custom detector |
+| Objects crossing the path get no TTC | Looming only measures approach, not lateral motion | Proximity alerts (Phase 5); lateral prediction with ego-motion compensation (Phase 7) |
+| Track IDs switch when the camera pans fast | Tracker assumes smooth motion; head/phone rotation breaks it | Phone gyroscope to compensate camera rotation (Phase 7) |
+| Stairs going down flagged as a generic obstacle | No "stairs" class, ground plane fit confused by steps | Phase 6: custom detector |
+
 ## Final LinkedIn post — assets to save while building
 
 One post at the end ("I've been working on..."). Save these along the way:

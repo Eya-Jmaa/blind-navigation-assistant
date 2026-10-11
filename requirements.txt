@@ -3,5 +3,6 @@ lap                   # assignment solver used by ByteTrack (Phase 4)
 opencv-python>=4.10   # video I/O and drawing
 numpy
 transformers>=4.45    # Depth Anything V2 (Phase 2)
-pyttsx3               # offline text-to-speech (Phase 5)
-sounddevice           # spatial beeps (Phase 5)
+comtypes              # Windows text-to-speech engine (SAPI) (Phase 5)
+sounddevice           # live audio playback (Phase 5)
+imageio-ffmpeg        # bundled ffmpeg: adds the soundtrack to demo videos (Phase 5)

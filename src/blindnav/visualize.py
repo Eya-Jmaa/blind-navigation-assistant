@@ -102,6 +102,21 @@ class TrailDrawer:
         return frame
 
 
+def draw_caption(frame: np.ndarray, text: str, urgent: bool) -> np.ndarray:
+    """Subtitle of what the assistant is saying: LinkedIn videos autoplay without sound."""
+    scale = frame.shape[0] / 720
+    font_scale, thickness = 1.1 * scale, max(2, round(3 * scale))
+    # OpenCV's built-in fonts only support ASCII: replace French accents for the subtitle.
+    text = text.translate(str.maketrans("éèêàâùûôîç", "eeeaauuoic"))
+    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+    x, y = (frame.shape[1] - tw) // 2, int(110 * scale)
+    bg = (0, 0, 200) if urgent else (40, 40, 40)
+    cv2.rectangle(frame, (x - 20, y - th - 20), (x + tw + 20, y + 20), bg, -1)
+    cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255),
+                thickness)
+    return frame
+
+
 def draw_fps(frame: np.ndarray, fps: float) -> np.ndarray:
     scale = frame.shape[0] / 720
     cv2.putText(frame, f"{fps:.1f} FPS", (15, int(40 * scale)), cv2.FONT_HERSHEY_SIMPLEX,
