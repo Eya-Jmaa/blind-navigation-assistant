@@ -11,6 +11,7 @@ WINDOW = 1.0              # s of history used to estimate motion
 MIN_SAMPLES = 5           # need at least this many measurements for a reliable estimate
 MIN_APPROACH_SPEED = 0.3  # m/s, slower than this = not really approaching (noise)
 MAX_TTC = 10.0            # s, beyond this = not a threat worth tracking
+MIN_BOX_HEIGHT = 40       # px: on smaller boxes, 2 px of jitter already looks like "growth"
 FORGET_AFTER = 2.0        # s without seeing an object -> drop its history
 PATH_KEY = "path"         # history key for the unknown obstacle in the walking path
 
@@ -28,6 +29,8 @@ class MotionTracker:
             if det.track_id is None:
                 continue
             x1, y1, x2, y2 = det.box
+            if y2 - y1 < MIN_BOX_HEIGHT:
+                continue  # too small (far away) for a reliable looming estimate
             if y2 >= image_height - 2:
                 # Box cut by the bottom of the image: its height no longer grows with the
                 # object, so looming would underestimate the danger. Keep the last estimate.
