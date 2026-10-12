@@ -42,6 +42,10 @@ def main():
     parser.add_argument("--conf", type=float, default=0.35)
     parser.add_argument("--all-classes", action="store_true")
     parser.add_argument("--no-depth", action="store_true", help="skip depth estimation")
+    parser.add_argument("--depth-size", type=int, default=392,
+                        help="depth network input (short side). 518 = full quality, slower")
+    parser.add_argument("--depth-every", type=int, default=2,
+                        help="compute depth every N frames, reuse it in between")
     parser.add_argument("--no-show", action="store_true", help="don't open a preview window")
     parser.add_argument("--lang", choices=["en", "fr"], default="en", help="voice language")
     args = parser.parse_args()
@@ -59,7 +63,8 @@ def main():
                                    class_conf=HAZARD_CLASS_CONF, id_offset=100_000)
     elif not args.no_hazards:
         print(f"No hazard model at {args.hazard_weights}: COCO classes only.")
-    depth_estimator = None if args.no_depth else DepthEstimator()
+    depth_estimator = None if args.no_depth else DepthEstimator(input_size=args.depth_size)
+    depth = None
     spatial = SpatialAnalyzer()
     motion = MotionTracker()
     trails = TrailDrawer()
@@ -105,10 +110,13 @@ def main():
             detections += hazard_detector.detect(frame)
         t_detect = time.perf_counter()
 
-        depth, path = None, None
+        path = None  # (depth is NOT reset here: it is reused between frames)
         t_depth = t_detect
         if depth_estimator:
-            depth = depth_estimator.estimate(frame)
+            # The scene barely changes between two frames (~9 cm of walking at 15 FPS):
+            # recomputing depth every frame is the most expensive way to learn nothing new.
+            if depth is None or frame_index % args.depth_every == 0:
+                depth = depth_estimator.estimate(frame)
             for det in detections:
                 det.distance = object_distance(depth, det.box)
             t_depth = time.perf_counter()
