@@ -6,3 +6,4 @@ models/
 *.engine
 __pycache__/
 .venv/
+*.egg-info/
