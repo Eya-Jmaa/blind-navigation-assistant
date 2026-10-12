@@ -91,7 +91,9 @@ CV/
 | Thin obstacles (poles, bollards) barely visible in depth | Depth model runs at ~518 px, thin structures get smoothed | Phase 6: custom detector |
 | Objects crossing the path get no TTC | Looming only measures approach, not lateral motion | Proximity alerts (Phase 5); lateral prediction with ego-motion compensation (Phase 7) |
 | Track IDs switch when the camera pans fast | Tracker assumes smooth motion; head/phone rotation breaks it | Phone gyroscope to compensate camera rotation (Phase 7) |
-| Stairs going down flagged as a generic obstacle | No "stairs" class, ground plane fit confused by steps | Phase 6: custom detector |
+| Stairs only announced as a generic "obstacle" (up vs down unknown) | Phase 6 model trained on Bangladesh streets doesn't transfer to European stairs (domain shift). Depth geometry can't tell up from down without knowing gravity: tested, up and down clips gave identical results | Phone accelerometer (gravity) in Phase 7; more diverse training data |
+| Bollards not detected | Too thin for the depth map; no class in the training data; zero-shot YOLO-World only reaches ~0.3 confidence | More diverse training data (e.g. a sidewalk-obstacle dataset) |
+| Custom hazard model weak outside its training domain | Test mAP50 0.56 on same-distribution data; almost no detections on our European clips | Train on data closer to the target streets |
 
 ## Final LinkedIn post — assets to save while building
 
