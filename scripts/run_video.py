@@ -22,7 +22,7 @@ import numpy as np
 
 from blindnav.announcer import URGENT, Announcer, message, rank_alerts
 from blindnav.depth import DepthEstimator, colorize, object_distance
-from blindnav.detector import Detector
+from blindnav.detector import HAZARD_CLASS_CONF, Detector
 from blindnav.risk import MotionTracker
 from blindnav.spatial import SpatialAnalyzer
 from blindnav.speech import LiveSpeaker, SoundtrackRecorder
@@ -36,6 +36,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", help="video path, or webcam index (0)")
     parser.add_argument("--weights", default="models/yolo11s.pt")
+    parser.add_argument("--hazard-weights", default="models/hazards.pt",
+                        help="our street-hazard model (phase 6)")
+    parser.add_argument("--no-hazards", action="store_true", help="COCO model only")
     parser.add_argument("--conf", type=float, default=0.35)
     parser.add_argument("--all-classes", action="store_true")
     parser.add_argument("--no-depth", action="store_true", help="skip depth estimation")
@@ -49,6 +52,13 @@ def main():
         raise SystemExit(f"Cannot open {args.source}")
 
     detector = Detector(args.weights, conf=args.conf, all_classes=args.all_classes)
+    # Second model: stairs, poles, pillars, cones... (classes COCO doesn't know).
+    hazard_detector = None
+    if not args.no_hazards and Path(args.hazard_weights).exists():
+        hazard_detector = Detector(args.hazard_weights, conf=args.conf, all_classes=True,
+                                   class_conf=HAZARD_CLASS_CONF, id_offset=100_000)
+    elif not args.no_hazards:
+        print(f"No hazard model at {args.hazard_weights}: COCO classes only.")
     depth_estimator = None if args.no_depth else DepthEstimator()
     spatial = SpatialAnalyzer()
     motion = MotionTracker()
@@ -91,6 +101,8 @@ def main():
 
         start = time.perf_counter()
         detections = detector.detect(frame)
+        if hazard_detector:
+            detections += hazard_detector.detect(frame)
         t_detect = time.perf_counter()
 
         depth, path = None, None

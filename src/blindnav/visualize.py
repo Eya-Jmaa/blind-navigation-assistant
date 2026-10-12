@@ -13,6 +13,9 @@ COLORS = {
     "person": (80, 200, 255),
     "car": (60, 60, 240), "truck": (60, 60, 240), "bus": (60, 60, 240),
     "bicycle": (240, 160, 60), "motorcycle": (240, 160, 60),
+    # Street hazards from our own model (phase 6): orange family
+    "stairs": (0, 140, 255), "pole": (0, 200, 255), "pillar": (0, 200, 255),
+    "cone": (0, 100, 255), "obstacle": (0, 170, 255), "bin": (0, 170, 255),
 }
 DEFAULT_COLOR = (200, 200, 200)
 DANGER_COLOR = (255, 0, 255)  # magenta: approaching with a short time-to-collision

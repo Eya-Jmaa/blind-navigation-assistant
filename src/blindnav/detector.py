@@ -13,6 +13,11 @@ NAVIGATION_CLASSES = {
     "bench", "chair", "potted plant", "dog", "cat", "suitcase",
 }
 
+# Our street-hazard model (phase 6). Per-class confidence chosen from its TEST results:
+# - "obstacle" is a vague class and caused 66% of the false detections -> stricter.
+# - "bin" found only 3% of bins (36 training examples) -> disabled (threshold > 1).
+HAZARD_CLASS_CONF = {"obstacle": 0.5, "bin": 1.1}
+
 
 @dataclass
 class Detection:
@@ -29,9 +34,14 @@ class Detection:
 
 class Detector:
     def __init__(self, weights: str = "models/yolo11s.pt", conf: float = 0.35,
-                 all_classes: bool = False):
+                 all_classes: bool = False, class_conf: dict[str, float] | None = None,
+                 id_offset: int = 0):
         self.model = YOLO(weights)  # downloads the weights on first use
         self.conf = conf
+        self.class_conf = class_conf or {}  # per-class thresholds overriding `conf`
+        # Each model has its own tracker, and both number their tracks 1, 2, 3...
+        # An offset keeps the ids of two models from colliding.
+        self.id_offset = id_offset
         # model.names maps class id -> name, e.g. {0: "person", 2: "car", ...}
         self.class_ids = None if all_classes else [
             i for i, name in self.model.names.items() if name in NAVIGATION_CLASSES
@@ -56,10 +66,13 @@ class Detector:
         detections = []
         for box, cls_id, conf, track_id in zip(boxes.xyxy.cpu().numpy(), boxes.cls.cpu().numpy(),
                                                boxes.conf.cpu().numpy(), ids):
+            name = self.model.names[int(cls_id)]
+            if conf < self.class_conf.get(name, self.conf):
+                continue
             detections.append(Detection(
                 box=tuple(int(v) for v in box),
-                class_name=self.model.names[int(cls_id)],
+                class_name=name,
                 confidence=float(conf),
-                track_id=track_id,
+                track_id=None if track_id is None else track_id + self.id_offset,
             ))
         return detections
