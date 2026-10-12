@@ -23,6 +23,8 @@ MAX_APPROACH_DISTANCE = 12.0  # m: beyond this, distances are unreliable -> no "
 CLASS_WEIGHT = {
     "car": 1.0, "bus": 1.0, "truck": 1.0, "train": 1.0, "motorcycle": 1.0,
     "bicycle": 0.9, "person": 0.7, "dog": 0.6,
+    # Street hazards (our phase 6 model). Stairs: a fall is among the worst accidents.
+    "stairs": 1.0, "pole": 0.8, "pillar": 0.8, "obstacle": 0.7, "cone": 0.6,
 }
 DEFAULT_WEIGHT = 0.6      # static objects: bench, chair, potted plant, hydrant...
 OBSTACLE_WEIGHT = 0.8     # unknown obstacle found by the 3D corridor
@@ -136,7 +138,8 @@ LABELS = {
            "stop sign": "panneau stop", "fire hydrant": "borne incendie",
            "parking meter": "horodateur", "bench": "banc", "chair": "chaise",
            "potted plant": "plante", "dog": "chien", "cat": "chat", "suitcase": "valise",
-           "obstacle": "obstacle"},
+           "obstacle": "obstacle", "stairs": "escalier", "pole": "poteau", "pillar": "pilier",
+           "cone": "cône", "bin": "poubelle"},
 }
 TEMPLATES = {
     "en": {"ahead": "ahead", "clock": "at {h} o'clock", "near": "very close",
