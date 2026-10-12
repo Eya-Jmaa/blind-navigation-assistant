@@ -43,7 +43,8 @@ class Detector:
         # Each model has its own tracker, and both number their tracks 1, 2, 3...
         # An offset keeps the ids of two models from colliding.
         self.id_offset = id_offset
-        self.half = torch.cuda.is_available()  # FP16 on GPU: faster, same accuracy in practice
+        # FP16 on GPU: faster, same accuracy in practice ("quantize" replaced the old "half" flag).
+        self.precision = "fp16" if torch.cuda.is_available() else None
         # model.names maps class id -> name, e.g. {0: "person", 2: "car", ...}
         self.class_ids = None if all_classes else [
             i for i, name in self.model.names.items() if name in NAVIGATION_CLASSES
@@ -55,11 +56,11 @@ class Detector:
         # track() does the same, then links each box to the boxes of previous frames
         # (ByteTrack) and gives it an id. persist=True keeps the tracker memory between calls.
         if track:
-            result = self.model.track(frame, conf=self.conf, classes=self.class_ids, half=self.half,
-                                      tracker="bytetrack.yaml", persist=True, verbose=False)[0]
+            result = self.model.track(frame, conf=self.conf, classes=self.class_ids,
+                                      quantize=self.precision, tracker="bytetrack.yaml", persist=True, verbose=False)[0]
         else:
             result = self.model.predict(frame, conf=self.conf, classes=self.class_ids,
-                                        half=self.half, verbose=False)[0]
+                                        quantize=self.precision, verbose=False)[0]
 
         boxes = result.boxes
         # A box that was just detected and not confirmed yet as a track has no id.
