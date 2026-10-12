@@ -12,26 +12,43 @@ DEFAULT_MODEL = "depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf"
 
 
 class DepthEstimator:
-    def __init__(self, model_id: str = DEFAULT_MODEL):
+    def __init__(self, model_id: str = DEFAULT_MODEL, input_size: int = 518):
+        """`input_size`: short side of the image fed to the network (518 = training size).
+        Smaller is faster (cost grows with the number of pixels) but less detailed."""
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         # FP16 (half precision) halves memory and is ~2x faster on GPU, with almost no accuracy loss.
         self.dtype = torch.float16 if self.device == "cuda" else torch.float32
-        self.processor = AutoImageProcessor.from_pretrained(model_id)
+        self.input_size = input_size
+        processor = AutoImageProcessor.from_pretrained(model_id)
+        # Normalization constants the model was trained with (ImageNet mean / std).
+        self.mean = torch.tensor(processor.image_mean, device=self.device).view(1, 3, 1, 1)
+        self.std = torch.tensor(processor.image_std, device=self.device).view(1, 3, 1, 1)
         self.model = AutoModelForDepthEstimation.from_pretrained(
             model_id, dtype=self.dtype).to(self.device).eval()
+
+    def _network_size(self, h: int, w: int) -> tuple[int, int]:
+        # Keep the aspect ratio, short side = input_size, both sides multiples of 14
+        # (the network cuts the image into 14x14 patches).
+        scale = self.input_size / min(h, w)
+        return (max(14, round(h * scale / 14) * 14), max(14, round(w * scale / 14) * 14))
 
     @torch.inference_mode()  # no gradients needed: we only predict, never train here
     def estimate(self, frame: np.ndarray) -> np.ndarray:
         """Return a (H, W) array: distance in meters for every pixel of the frame."""
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # the model was trained on RGB images
-        inputs = self.processor(images=rgb, return_tensors="pt")  # resize to ~518px + normalize
-        pixel_values = inputs["pixel_values"].to(self.device, self.dtype)
+        # Preprocessing on the GPU (the Hugging Face processor does it on the CPU: 22 ms).
+        # Same steps: BGR->RGB, resize (bicubic), scale to 0..1, normalize with mean/std.
+        x = torch.from_numpy(frame).to(self.device)            # (H, W, 3) uint8, BGR
+        x = x.flip(-1).permute(2, 0, 1)[None].float() / 255    # (1, 3, H, W) RGB in 0..1
+        x = F.interpolate(x, size=self._network_size(*frame.shape[:2]), mode="bicubic",
+                          align_corners=False, antialias=True)  # antialias = like PIL resize
+        x = ((x - self.mean) / self.std).to(self.dtype)
 
-        depth = self.model(pixel_values=pixel_values).predicted_depth  # (1, h, w), low resolution
+        depth = self.model(pixel_values=x).predicted_depth  # (1, h, w), low resolution
         # Upsample back to the frame size so depth[y, x] matches frame[y, x].
         depth = F.interpolate(depth[None], size=frame.shape[:2], mode="bilinear",
                               align_corners=False)[0, 0]
-        return depth.float().cpu().numpy()
+        # Copy back in float16 (half the bytes of float32), convert on the CPU side.
+        return depth.half().cpu().numpy().astype(np.float32)
 
 
 def object_distance(depth: np.ndarray, box: tuple[int, int, int, int]) -> float:
